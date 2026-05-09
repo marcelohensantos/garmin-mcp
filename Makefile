@@ -1,0 +1,13 @@
+PYTHON = .venv/bin/python
+PIP    = .venv/bin/pip
+
+.PHONY: install check test
+
+install:
+	$(PIP) install -r requirements.txt
+
+check:
+	PYTHONPATH=src $(PYTHON) src/check.py
+
+test:
+	$(PYTHON) -m pytest tests/ -v
