@@ -30,6 +30,7 @@ def garmin_mock():
     mock.profile = {"userName": "testuser"}
     mock.get_gear.return_value = [{"gearPk": 1, "customMakeModel": "Nike Vomero"}]
     mock.upload_running_workout.return_value = {"workoutId": 99999, "workoutName": "Test Workout"}
+    mock.upload_swimming_workout.return_value = {"workoutId": 77777, "workoutName": "Test Swim"}
     mock.schedule_workout.return_value = {"scheduledWorkoutId": 11111, "date": "2026-05-15"}
     mock.get_workouts.return_value = [{"workoutId": 99999, "workoutName": "Test Workout"}]
     mock.delete_workout.return_value = None
