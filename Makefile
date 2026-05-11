@@ -1,5 +1,5 @@
-PYTHON = .venv/bin/python
-PIP    = .venv/bin/pip
+PYTHON = ../.venv/bin/python
+PIP    = ../.venv/bin/pip
 
 .PHONY: install check test test-integration
 

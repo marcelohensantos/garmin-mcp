@@ -29,6 +29,24 @@ def garmin_mock():
     mock.get_devices.return_value = [{"deviceId": 9999, "productDisplayName": "Forerunner 965"}]
     mock.profile = {"userName": "testuser"}
     mock.get_gear.return_value = [{"gearPk": 1, "customMakeModel": "Nike Vomero"}]
+    mock.upload_running_workout.return_value = {"workoutId": 99999, "workoutName": "Test Workout"}
+    mock.schedule_workout.return_value = {"scheduledWorkoutId": 11111, "date": "2026-05-15"}
+    mock.get_workouts.return_value = [{"workoutId": 99999, "workoutName": "Test Workout"}]
+    mock.delete_workout.return_value = None
+    mock.get_scheduled_workouts.return_value = [
+        {
+            "date": "2026-05-13",
+            "workoutId": 99999,
+            "workoutName": "Threshold 3x14min",
+            "sportTypeKey": "running",
+        },
+        {
+            "date": "2026-05-15",
+            "workoutId": 88888,
+            "workoutName": "Long Run",
+            "sportTypeKey": "running",
+        },
+    ]
 
     with patch("auth.get_client", return_value=mock):
         yield mock
