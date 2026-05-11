@@ -16,9 +16,12 @@ def get_client() -> Garmin:
         return _client
 
     email = os.getenv("GARMIN_EMAIL")
+    if not email:
+        raise RuntimeError("GARMIN_EMAIL is not set")
+
     password = os.getenv("GARMIN_PASSWORD")
-    if not email or not password:
-        raise RuntimeError("GARMIN_EMAIL and GARMIN_PASSWORD must be set in .env")
+    if not password:
+        raise RuntimeError("GARMIN_PASSWORD is not set")
 
     _TOKEN_STORE.mkdir(exist_ok=True)
 

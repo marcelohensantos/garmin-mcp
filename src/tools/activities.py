@@ -4,28 +4,25 @@ import json
 
 import auth
 from app import mcp
-from utils import export_dir, today
+from utils import export_dir, serialize, today
 
 
 @mcp.tool()
 def get_activities(limit: int = 20) -> str:
     """Return the most recent activities."""
-    data = auth.get_client().get_activities(0, limit)
-    return json.dumps(data, default=str, indent=2)
+    return serialize(auth.get_client().get_activities(0, limit))
 
 
 @mcp.tool()
 def get_activities_by_date(start_date: str, end_date: str | None = None) -> str:
     """Return activities between start_date and end_date (YYYY-MM-DD). End defaults to today."""
-    data = auth.get_client().get_activities_by_date(start_date, end_date or today())
-    return json.dumps(data, default=str, indent=2)
+    return serialize(auth.get_client().get_activities_by_date(start_date, end_date or today()))
 
 
 @mcp.tool()
 def get_activity_details(activity_id: str) -> str:
     """Return full details for a single activity by its ID."""
-    data = auth.get_client().get_activity_details(activity_id)
-    return json.dumps(data, default=str, indent=2)
+    return serialize(auth.get_client().get_activity_details(activity_id))
 
 
 @mcp.tool()
@@ -51,7 +48,7 @@ def export_activity(activity_id: str, fmt: str = "gpx") -> str:
     data = client.download_activity(activity_id, dl_fmt=dl_fmt)
     out_path = export_dir() / f"{activity_id}.{ext}"
     out_path.write_bytes(data)
-    return json.dumps({"path": str(out_path), "bytes": len(data)})
+    return serialize({"path": str(out_path), "bytes": len(data)})
 
 
 @mcp.tool()
@@ -71,4 +68,4 @@ def export_activities_csv(start_date: str, end_date: str | None = None) -> str:
 
     out_path = export_dir() / f"activities_{start_date}_{end}.csv"
     out_path.write_text(buf.getvalue(), encoding="utf-8")
-    return json.dumps({"path": str(out_path), "rows": len(activities)})
+    return serialize({"path": str(out_path), "rows": len(activities)})

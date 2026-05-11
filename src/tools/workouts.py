@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime
+from datetime import datetime
 
 import auth
 from app import mcp
@@ -12,6 +12,7 @@ from garminconnect.workout import (
     create_repeat_group,
     create_warmup_step,
 )
+from utils import serialize
 
 
 # ---------------------------------------------------------------------------
@@ -24,18 +25,16 @@ def _pace_target(pace: str, tolerance_sec: int = 10) -> dict:
     Garmin pace.zone uses seconds-per-meter: slower pace = higher value.
     targetValueOne = slow bound, targetValueTwo = fast bound.
     """
-    parts = pace.strip().split(":")
-    total_sec = int(parts[0]) * 60 + int(parts[1])  # s/km
-    slow_sm = round((total_sec + tolerance_sec) / 1000, 6)
-    fast_sm = round((total_sec - tolerance_sec) / 1000, 6)
+    minutes, seconds = pace.strip().split(":")
+    total_sec = int(minutes) * 60 + int(seconds)  # s/km
     return {
         "targetType": {
             "workoutTargetTypeId": 6,
             "workoutTargetTypeKey": "pace.zone",
             "displayOrder": 6,
         },
-        "targetValueOne": slow_sm,
-        "targetValueTwo": fast_sm,
+        "targetValueOne": round((total_sec + tolerance_sec) / 1000, 6),
+        "targetValueTwo": round((total_sec - tolerance_sec) / 1000, 6),
     }
 
 
@@ -68,19 +67,17 @@ def _is_simple_easy(main_set: list[dict], repeat: int) -> bool:
 # Step builder
 # ---------------------------------------------------------------------------
 
-def _build_single_step(s: dict, order: int):
+def _build_single_step(spec: dict, order: int):
     """Build one executable step from a spec dict."""
-    stype    = s.get("type", "interval")
-    minutes  = float(s.get("minutes", 0))
-    seconds_val = float(s.get("seconds", 0))
-    duration = minutes * 60 + seconds_val
-    pace     = s.get("pace")
+    stype    = spec.get("type", "interval")
+    duration = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
+    pace     = spec.get("pace")
     target   = _pace_target(pace) if pace else {}
 
     if stype == "interval":
         step = create_interval_step(duration, order, target.get("targetType"))
         if target:
-            step.targetType = target["targetType"]
+            step.targetType                    = target["targetType"]
             step.model_extra["targetValueOne"] = target["targetValueOne"]
             step.model_extra["targetValueTwo"] = target["targetValueTwo"]
     elif stype == "recovery":
@@ -90,15 +87,15 @@ def _build_single_step(s: dict, order: int):
     return step
 
 
-def _step_duration(s: dict) -> float:
+def _step_duration(spec: dict) -> float:
     """Total duration in seconds for a step spec, expanding nested repeats."""
-    if s.get("type") == "repeat":
+    if spec.get("type") == "repeat":
         inner = sum(
-            float(ns.get("minutes", 0)) * 60 + float(ns.get("seconds", 0))
-            for ns in s.get("steps", [])
+            float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
+            for s in spec.get("steps", [])
         )
-        return inner * int(s.get("repeat", 1))
-    return float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
+        return inner * int(spec.get("repeat", 1))
+    return float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
 
 
 def _build_steps(main_set: list[dict], repeat: int, step_order_start: int) -> list:
@@ -108,14 +105,12 @@ def _build_steps(main_set: list[dict], repeat: int, step_order_start: int) -> li
       {"type": "repeat", "repeat": 6, "steps": [...]}
     """
     inner = []
-    order = 1
-    for s in main_set:
-        if s.get("type") == "repeat":
-            nested = [_build_single_step(ns, i + 1) for i, ns in enumerate(s.get("steps", []))]
-            inner.append(create_repeat_group(int(s.get("repeat", 1)), nested, order))
+    for order, spec in enumerate(main_set, start=1):
+        if spec.get("type") == "repeat":
+            nested = [_build_single_step(s, i + 1) for i, s in enumerate(spec.get("steps", []))]
+            inner.append(create_repeat_group(int(spec.get("repeat", 1)), nested, order))
         else:
-            inner.append(_build_single_step(s, order))
-        order += 1
+            inner.append(_build_single_step(spec, order))
 
     if repeat > 1:
         return [create_repeat_group(repeat, inner, step_order_start)]
@@ -141,19 +136,24 @@ def create_running_workout(workout_json: str) -> str:
       "warmup_minutes": 15,
       "main_set": [
         {"type": "interval", "minutes": 14, "pace": "4:31"},
-        {"type": "recovery", "minutes": 2}
+        {"type": "recovery", "minutes": 2},
+        {"type": "repeat", "repeat": 6, "steps": [
+          {"type": "interval", "seconds": 20, "pace": "3:54"},
+          {"type": "recovery", "minutes": 1, "seconds": 40}
+        ]}
       ],
       "repeat": 3,
       "cooldown_minutes": 10
     }
 
-    pace format: "M:SS" per km (e.g. "4:31").
+    pace format: "M:SS" per km (e.g. "4:31"). Target type: pace.zone (min/km display on device).
 
     Step structure rules:
     - All workouts end with a cooldown step using lap-button-press (open-ended).
     - Simple easy runs (single no-pace interval): warmup + cooldown are merged into
       the interval; only one interval step + lap cooldown are created.
     - All other workouts: warmup (time-based) + main set + lap cooldown.
+    - Nested repeat blocks produce a RepeatGroup on the device.
 
     Returns the created workout id and name.
     """
@@ -170,12 +170,9 @@ def create_running_workout(workout_json: str) -> str:
     repeat       = int(spec.get("repeat", 1))
 
     if _is_simple_easy(main_set, repeat):
-        # Merge warmup + interval + cooldown into a single continuous interval
         s         = main_set[0]
         total_sec = int((warmup_min + float(s.get("minutes", 0)) + cooldown_min) * 60)
-        run_step  = create_interval_step(total_sec, step_order=1)
-        lap_cd    = _lap_cooldown(step_order=2)
-        all_steps = [run_step, lap_cd]
+        all_steps = [create_interval_step(total_sec, step_order=1), _lap_cooldown(step_order=2)]
     else:
         warmup    = create_warmup_step(warmup_min * 60, step_order=1)
         main      = _build_steps(main_set, repeat, step_order_start=2)
@@ -202,7 +199,7 @@ def create_running_workout(workout_json: str) -> str:
 
     result     = auth.get_client().upload_running_workout(workout)
     workout_id = result.get("workoutId") or result.get("workout", {}).get("workoutId")
-    return json.dumps({"workoutId": workout_id, "name": name, "estimatedDurationSecs": total_sec})
+    return serialize({"workoutId": workout_id, "name": name, "estimatedDurationSecs": total_sec})
 
 
 @mcp.tool()
@@ -211,15 +208,13 @@ def schedule_workout(workout_id: str, date: str) -> str:
     Schedule an existing workout to the Garmin calendar on date (YYYY-MM-DD).
     Returns the scheduled workout details.
     """
-    result = auth.get_client().schedule_workout(workout_id, date)
-    return json.dumps(result, default=str)
+    return serialize(auth.get_client().schedule_workout(workout_id, date))
 
 
 @mcp.tool()
 def get_workouts(limit: int = 20) -> str:
     """Return the most recent workouts saved in Garmin Connect."""
-    data = auth.get_client().get_workouts(0, limit)
-    return json.dumps(data, default=str, indent=2)
+    return serialize(auth.get_client().get_workouts(0, limit))
 
 
 @mcp.tool()
@@ -278,4 +273,4 @@ def get_scheduled_workouts(start_date: str, end_date: str) -> str:
                 })
 
     results.sort(key=lambda x: x["date"])
-    return json.dumps(results, default=str)
+    return serialize(results)
