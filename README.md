@@ -7,7 +7,7 @@ MCP server that exposes Garmin Connect data to Claude (Desktop, Code, or any MCP
 ### 1. Clone & install
 
 ```bash
-git clone <repo-url> garmin-mcp
+git clone https://github.com/marcelohensantos/garmin-mcp
 cd garmin-mcp
 python3 -m venv .venv
 make install
