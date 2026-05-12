@@ -48,6 +48,44 @@ def test_get_activities_by_date_defaults_end_to_today(garmin_mock):
     garmin_mock.get_activities_by_date.assert_called_once_with("2024-01-01", _today())
 
 
+def test_get_activities_filters_by_type(garmin_mock):
+    garmin_mock.get_activities.return_value = [
+        {"activityId": "1", "activityType": {"typeKey": "running"}},
+        {"activityId": "2", "activityType": {"typeKey": "fitness_equipment"}},
+        {"activityId": "3", "activityType": {"typeKey": "swimming"}},
+    ]
+    result = json.loads(get_activities(limit=10, activity_type="running"))
+    assert len(result) == 1
+    assert result[0]["activityId"] == "1"
+
+
+def test_get_activities_by_date_filters_by_type(garmin_mock):
+    garmin_mock.get_activities_by_date.return_value = [
+        {"activityId": "1", "activityType": {"typeKey": "running"}},
+        {"activityId": "2", "activityType": {"typeKey": "fitness_equipment"}},
+    ]
+    result = json.loads(get_activities_by_date("2026-01-01", activity_type="fitness_equipment"))
+    assert len(result) == 1
+    assert result[0]["activityId"] == "2"
+
+
+def test_get_activities_filter_case_insensitive(garmin_mock):
+    garmin_mock.get_activities.return_value = [
+        {"activityId": "1", "activityType": {"typeKey": "Running"}},
+    ]
+    result = json.loads(get_activities(limit=5, activity_type="RUNNING"))
+    assert len(result) == 1
+
+
+def test_get_activities_no_filter_returns_all(garmin_mock):
+    garmin_mock.get_activities.return_value = [
+        {"activityId": "1", "activityType": {"typeKey": "running"}},
+        {"activityId": "2", "activityType": {"typeKey": "swimming"}},
+    ]
+    result = json.loads(get_activities(limit=10))
+    assert len(result) == 2
+
+
 def test_get_activity_details(garmin_mock):
     result = json.loads(get_activity_details("123456789"))
     assert result["activityId"] == "123456789"

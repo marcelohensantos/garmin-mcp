@@ -7,16 +7,44 @@ from app import mcp
 from utils import export_dir, serialize, today
 
 
-@mcp.tool()
-def get_activities(limit: int = 20) -> str:
-    """Return the most recent activities."""
-    return serialize(auth.get_client().get_activities(0, limit))
+def _filter_by_type(activities: list, activity_type: str | None) -> list:
+    if not activity_type:
+        return activities
+    key = activity_type.lower()
+    return [
+        a for a in activities
+        if (a.get("activityType") or {}).get("typeKey", "").lower() == key
+    ]
 
 
 @mcp.tool()
-def get_activities_by_date(start_date: str, end_date: str | None = None) -> str:
-    """Return activities between start_date and end_date (YYYY-MM-DD). End defaults to today."""
-    return serialize(auth.get_client().get_activities_by_date(start_date, end_date or today()))
+def get_activities(limit: int = 20, activity_type: str | None = None) -> str:
+    """
+    Return the most recent activities.
+
+    activity_type (optional): filter by sport. Common values:
+      running, strength_training, swimming, cycling, walking.
+    Note: filtering happens client-side, so limit applies before filtering.
+    Use a higher limit when filtering to avoid missing results.
+    """
+    activities = auth.get_client().get_activities(0, limit)
+    return serialize(_filter_by_type(activities, activity_type))
+
+
+@mcp.tool()
+def get_activities_by_date(
+    start_date: str,
+    end_date: str | None = None,
+    activity_type: str | None = None,
+) -> str:
+    """
+    Return activities between start_date and end_date (YYYY-MM-DD). End defaults to today.
+
+    activity_type (optional): filter by sport. Common values:
+      running, strength_training, swimming, cycling, walking.
+    """
+    activities = auth.get_client().get_activities_by_date(start_date, end_date or today())
+    return serialize(_filter_by_type(activities, activity_type))
 
 
 @mcp.tool()

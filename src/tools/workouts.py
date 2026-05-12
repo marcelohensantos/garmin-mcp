@@ -60,7 +60,12 @@ def _lap_cooldown(step_order: int):
 
 def _is_simple_easy(main_set: list[dict], repeat: int) -> bool:
     """True when the workout is a single no-pace interval (pure easy run)."""
-    return repeat == 1 and len(main_set) == 1 and not main_set[0].get("pace")
+    return (
+        repeat == 1
+        and len(main_set) == 1
+        and main_set[0].get("type") != "repeat"
+        and not main_set[0].get("pace")
+    )
 
 
 # ---------------------------------------------------------------------------

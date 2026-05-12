@@ -67,8 +67,8 @@ Restart the client after saving.
 
 | Tool | Description |
 |------|-------------|
-| `get_activities` | Most recent N activities |
-| `get_activities_by_date` | Activities in a date range |
+| `get_activities` | Most recent N activities; optional `activity_type` filter (e.g. `running`, `strength_training`, `swimming`) |
+| `get_activities_by_date` | Activities in a date range; same optional `activity_type` filter |
 | `get_activity_details` | Full details for one activity |
 | `export_activity` | Download GPX / TCX / FIT / CSV |
 | `export_activities_csv` | Summary CSV for a date range |
@@ -98,11 +98,19 @@ Restart the client after saving.
 
 | Tool | Description |
 |------|-------------|
-| `create_running_workout` | Create a structured running workout with pace targets and repeat groups |
+| `create_running_workout` | Structured running workout — pace zones, repeat groups, lap-button cooldown |
+| `create_swimming_workout` | Structured pool swimming workout — distance-based steps, stroke types, repeat groups |
+| `create_strength_workout` | Strength session — exercises grouped as repeat sets with weight and rest |
 | `schedule_workout` | Schedule an existing workout on the Garmin calendar |
 | `get_workouts` | List saved workouts |
 | `delete_workout` | Delete a workout by ID |
 | `get_scheduled_workouts` | List scheduled workouts in a date range |
+
+### Plans
+
+| Tool | Description |
+|------|-------------|
+| `save_plan` | Save a training plan JSON to `~/devel/garmin/data/` for later reference by agents |
 
 ### Profile & devices
 
@@ -122,10 +130,13 @@ src/
 ├── server.py           # Entry point
 ├── check.py            # Connectivity smoke test
 └── tools/
-    ├── activities.py   # Activity tools
+    ├── activities.py   # Activity tools (with activity_type filter)
     ├── health.py       # Health & wellness tools
     ├── training.py     # Training & fitness tools
-    ├── workouts.py     # Workout creation and calendar tools
+    ├── workouts.py     # Running workout creation and calendar tools
+    ├── swimming.py     # Swimming workout creation
+    ├── strength.py     # Strength workout creation
+    ├── plans.py        # save_plan — persist plans to data/
     └── profile.py      # Profile & devices tools
 
 tests/
@@ -150,3 +161,10 @@ make test-integration
 - The first run triggers a full login; subsequent runs reuse cached OAuth tokens.
 - `create_running_workout` pace targets use `pace.zone` (min/km display on device).
   Simple easy runs (single step, no pace) merge warmup + run + cooldown into one interval.
+  Run/walk and other repeat-group workouts work with no pace target — omit the `pace` field.
+- `create_swimming_workout` uses `sportTypeId: 4` (the library enum is incorrect — raw dict is used).
+- `create_strength_workout` uses `sportTypeId: 5` and the generic `upload_workout()` method.
+  Set `weight_kg: -1.0` for bodyweight exercises.
+- `get_activities` / `get_activities_by_date` filter by `activityType.typeKey` client-side.
+  Use a larger `limit` when filtering to avoid truncation before the filter is applied.
+- `save_plan` always writes to `~/devel/garmin/data/` — the directory is created if absent.
