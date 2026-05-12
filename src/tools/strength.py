@@ -109,31 +109,38 @@ def create_strength_workout(workout_json: str) -> str:
 
     workout_json schema:
     {
-      "name": "Push",
+      "name": "Força A — Upper Focus",
       "description": "optional",
       "exercises": [
         {
-          "name": "BENCH_PRESS",
-          "category": "CHEST",
-          "sets": 3,
+          "name": "LAT_PULLDOWN",
+          "category": "PULL_UP",
+          "sets": 4,
           "reps": 12,
-          "weight_kg": 60.0,
-          "rest_seconds": 90
+          "weight_kg": 35.0,
+          "rest_seconds": 75
         },
         {
-          "name": "OVERHEAD_DUMBBELL_PRESS",
-          "category": "SHOULDERS",
+          "name": "DUMBBELL_SHOULDER_PRESS",
+          "category": "SHOULDER_PRESS",
           "sets": 3,
           "reps": 12,
-          "weight_kg": 16.0,
+          "weight_kg": 10.0,
           "rest_seconds": 60
         }
       ]
     }
 
     Fields:
-    - name        : exercise name (Garmin constant, e.g. BENCH_PRESS)
-    - category    : muscle group constant (e.g. CHEST, BACK, SHOULDERS, TRICEPS_EXTENSION)
+    - name        : Garmin exercise name constant (e.g. LAT_PULLDOWN, SEATED_CABLE_ROW,
+                    ROMANIAN_DEADLIFT, BARBELL_BACK_SQUAT, HIP_THRUST, MACHINE_CHEST_PRESS,
+                    DUMBBELL_SHOULDER_PRESS, STANDING_CALF_RAISE, DEAD_BUG, PLANK).
+                    Use empty string "" when no specific Garmin name applies.
+    - category    : Garmin exercise category constant. VALID values (confirmed against API):
+                    PULL_UP, ROW, SHOULDER_PRESS, LATERAL_RAISE, TRICEPS_EXTENSION, CURL,
+                    BENCH_PRESS, SQUAT, DEADLIFT, LUNGE, HIP_RAISE, HIP_STABILITY,
+                    LEG_CURL, CALF_RAISE, FLYE, PUSH_UP, PLANK, CORE.
+                    INVALID (cause 400 error): CHEST, BACK, SHOULDERS.
     - sets        : number of sets (becomes RepeatGroup iterations)
     - reps        : reps per set
     - weight_kg   : weight in kg; use -1.0 for bodyweight exercises

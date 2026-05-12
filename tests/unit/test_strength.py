@@ -6,9 +6,9 @@ _PUSH_WORKOUT = json.dumps({
     "name": "Push",
     "description": "Chest, shoulders, triceps",
     "exercises": [
-        {"name": "BENCH_PRESS",              "category": "CHEST",     "sets": 3, "reps": 12, "weight_kg": 60.0,  "rest_seconds": 90},
-        {"name": "OVERHEAD_DUMBBELL_PRESS",  "category": "SHOULDERS", "sets": 3, "reps": 12, "weight_kg": 16.0,  "rest_seconds": 60},
-        {"name": "PUSH_UP",                  "category": "CHEST",     "sets": 3, "reps": 15, "weight_kg": -1.0,  "rest_seconds": 60},
+        {"name": "BARBELL_BENCH_PRESS",      "category": "BENCH_PRESS",       "sets": 3, "reps": 12, "weight_kg": 60.0,  "rest_seconds": 90},
+        {"name": "DUMBBELL_SHOULDER_PRESS",  "category": "SHOULDER_PRESS",    "sets": 3, "reps": 12, "weight_kg": 16.0,  "rest_seconds": 60},
+        {"name": "PUSH_UP",                  "category": "PUSH_UP",           "sets": 3, "reps": 15, "weight_kg": -1.0,  "rest_seconds": 60},
     ],
 })
 
@@ -66,8 +66,8 @@ def test_exercise_fields(garmin_mock):
     payload       = garmin_mock.upload_workout.call_args[0][0]
     exercise_step = payload["workoutSegments"][0]["workoutSteps"][1]["workoutSteps"][0]
 
-    assert exercise_step["category"]     == "CHEST"
-    assert exercise_step["exerciseName"] == "BENCH_PRESS"
+    assert exercise_step["category"]     == "BENCH_PRESS"
+    assert exercise_step["exerciseName"] == "BARBELL_BENCH_PRESS"
     assert exercise_step["weightValue"]  == 60.0
     assert exercise_step["weightUnit"]["unitKey"] == "kilogram"
 
