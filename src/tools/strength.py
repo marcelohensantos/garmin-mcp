@@ -141,6 +141,8 @@ def create_strength_workout(workout_json: str) -> str:
                     BENCH_PRESS, SQUAT, DEADLIFT, LUNGE, HIP_RAISE, HIP_STABILITY,
                     LEG_CURL, CALF_RAISE, FLYE, PUSH_UP, PLANK, CORE.
                     INVALID (cause 400 error): CHEST, BACK, SHOULDERS.
+                    NOTE: CORE category strips exerciseName on storage — use PLANK category
+                    for plank exercises so the name is preserved.
     - sets        : number of sets (becomes RepeatGroup iterations)
     - reps        : reps per set
     - weight_kg   : weight in kg; use -1.0 for bodyweight exercises
