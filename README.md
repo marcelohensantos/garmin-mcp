@@ -24,6 +24,12 @@ GARMIN_PASSWORD=suasenha
 
 OAuth tokens are cached automatically at `~/.garminconnect/` after the first login.
 
+> **Switching accounts?** If you previously logged in with a different Garmin account,
+> clear the cache before running `make check`:
+> ```bash
+> make clean-auth
+> ```
+
 ### 3. Verify connection
 
 ```bash
