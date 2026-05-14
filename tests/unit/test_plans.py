@@ -1,9 +1,6 @@
 import json
-from pathlib import Path
 
-import pytest
-
-from tools.plans import save_plan, _DATA_DIR
+from tools.plans import save_plan
 
 
 def test_save_plan_creates_file(tmp_path, monkeypatch):

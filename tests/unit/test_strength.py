@@ -6,9 +6,12 @@ _PUSH_WORKOUT = json.dumps({
     "name": "Push",
     "description": "Chest, shoulders, triceps",
     "exercises": [
-        {"name": "BARBELL_BENCH_PRESS",      "category": "BENCH_PRESS",       "sets": 3, "reps": 12, "weight_kg": 60.0,  "rest_seconds": 90},
-        {"name": "DUMBBELL_SHOULDER_PRESS",  "category": "SHOULDER_PRESS",    "sets": 3, "reps": 12, "weight_kg": 16.0,  "rest_seconds": 60},
-        {"name": "PUSH_UP",                  "category": "PUSH_UP",           "sets": 3, "reps": 15, "weight_kg": -1.0,  "rest_seconds": 60},
+        {"name": "BARBELL_BENCH_PRESS",     "category": "BENCH_PRESS",
+         "sets": 3, "reps": 12, "weight_kg": 60.0, "rest_seconds": 90},
+        {"name": "DUMBBELL_SHOULDER_PRESS", "category": "SHOULDER_PRESS",
+         "sets": 3, "reps": 12, "weight_kg": 16.0, "rest_seconds": 60},
+        {"name": "PUSH_UP",                 "category": "PUSH_UP",
+         "sets": 3, "reps": 15, "weight_kg": -1.0, "rest_seconds": 60},
     ],
 })
 

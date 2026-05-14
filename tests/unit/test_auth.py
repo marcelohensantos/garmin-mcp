@@ -1,4 +1,5 @@
 import pytest
+
 import auth as auth_module
 
 

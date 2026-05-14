@@ -11,9 +11,9 @@ _NO_TARGET = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "di
 _NO_STROKE = {"strokeTypeId": 0, "strokeTypeKey": None, "displayOrder": 0}
 _NO_EQUIP  = {"equipmentTypeId": 0, "equipmentTypeKey": None, "displayOrder": 0}
 
-_COND_DIST       = {"conditionTypeId": 3, "conditionTypeKey": "distance",   "displayOrder": 3, "displayable": True}
-_COND_LAP        = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}
-_COND_FIXED_REST = {"conditionTypeId": 8, "conditionTypeKey": "fixed.rest", "displayOrder": 8, "displayable": True}
+_COND_DIST       = {"conditionTypeId": 3, "conditionTypeKey": "distance",   "displayOrder": 3, "displayable": True}  # noqa: E501
+_COND_LAP        = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}  # noqa: E501
+_COND_FIXED_REST = {"conditionTypeId": 8, "conditionTypeKey": "fixed.rest", "displayOrder": 8, "displayable": True}  # noqa: E501
 
 _STEP_TYPES = {
     "warmup":   {"stepTypeId": 1, "stepTypeKey": "warmup",   "displayOrder": 1},

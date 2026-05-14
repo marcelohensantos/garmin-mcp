@@ -2,7 +2,6 @@ import json
 
 from tools.running import _pace_target, create_running_workout, update_running_workout
 
-
 # ---------------------------------------------------------------------------
 # Pace helper
 # ---------------------------------------------------------------------------

@@ -9,9 +9,9 @@ _SPORT      = {"sportTypeId": 5, "sportTypeKey": "strength_training", "displayOr
 _NO_TARGET  = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
 _WEIGHT_KG  = {"unitId": 8, "unitKey": "kilogram", "factor": 1000.0}
 
-_COND_REPS  = {"conditionTypeId": 10, "conditionTypeKey": "reps",       "displayOrder": 10, "displayable": True}
-_COND_TIME  = {"conditionTypeId": 2,  "conditionTypeKey": "time",       "displayOrder": 2,  "displayable": True}
-_COND_LAP   = {"conditionTypeId": 1,  "conditionTypeKey": "lap.button", "displayOrder": 1,  "displayable": True}
+_COND_REPS  = {"conditionTypeId": 10, "conditionTypeKey": "reps",       "displayOrder": 10, "displayable": True}  # noqa: E501
+_COND_TIME  = {"conditionTypeId": 2,  "conditionTypeKey": "time",       "displayOrder": 2,  "displayable": True}  # noqa: E501
+_COND_LAP   = {"conditionTypeId": 1,  "conditionTypeKey": "lap.button", "displayOrder": 1,  "displayable": True}  # noqa: E501
 
 _STEP_INTERVAL = {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3}
 _STEP_REST     = {"stepTypeId": 5, "stepTypeKey": "rest",     "displayOrder": 5}

@@ -1,8 +1,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
 from tools.activities import (
     export_activities_csv,
     export_activity,
@@ -23,7 +21,6 @@ from tools.health import (
 from tools.profile import get_devices, get_gear, get_user_profile
 from tools.training import get_personal_records, get_training_status, get_vo2max
 from utils import today as _today
-
 
 # ---------------------------------------------------------------------------
 # Activities

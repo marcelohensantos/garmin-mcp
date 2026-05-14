@@ -8,9 +8,9 @@ from utils import serialize
 _SPORT      = {"sportTypeId": 1, "sportTypeKey": "running",   "displayOrder": 1}
 _NO_TARGET  = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target",  "displayOrder": 1}
 _PACE_ZONE  = {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone",  "displayOrder": 6}
-_COND_TIME  = {"conditionTypeId": 2, "conditionTypeKey": "time",       "displayOrder": 2, "displayable": True}
-_COND_DIST  = {"conditionTypeId": 3, "conditionTypeKey": "distance",   "displayOrder": 3, "displayable": True}
-_COND_LAP   = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}
+_COND_TIME  = {"conditionTypeId": 2, "conditionTypeKey": "time",       "displayOrder": 2, "displayable": True}  # noqa: E501
+_COND_DIST  = {"conditionTypeId": 3, "conditionTypeKey": "distance",   "displayOrder": 3, "displayable": True}  # noqa: E501
+_COND_LAP   = {"conditionTypeId": 1, "conditionTypeKey": "lap.button", "displayOrder": 1, "displayable": True}  # noqa: E501
 _KM         = {"unitId": 2, "unitKey": "kilometer", "factor": 100000.0}
 _STROKE     = {"strokeTypeId": 0, "strokeTypeKey": None, "displayOrder": 0}
 _EQUIP      = {"equipmentTypeId": 0, "equipmentTypeKey": None, "displayOrder": 0}
@@ -49,7 +49,7 @@ def _step(type_id: int, type_key: str, order: int, end_cond: dict, end_value,
     s = {
         "type":              "ExecutableStepDTO",
         "stepOrder":         order,
-        "stepType":          {"stepTypeId": type_id, "stepTypeKey": type_key, "displayOrder": type_id},
+        "stepType":          {"stepTypeId": type_id, "stepTypeKey": type_key, "displayOrder": type_id},  # noqa: E501
         "endCondition":      end_cond,
         "endConditionValue": end_value,
         "targetType":        target or _NO_TARGET,
@@ -111,7 +111,9 @@ def _build_main(main_set: list[dict], tolerance_sec: int, order_start: int) -> l
             steps.append(repeat_group(order, int(spec.get("repeat", 1)), inner))
         elif stype == "interval":
             dur = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
-            steps.append(_time_interval(order, dur, pace=spec.get("pace"), tolerance_sec=tolerance_sec))
+            steps.append(  # noqa: E501
+                _time_interval(order, dur, pace=spec.get("pace"), tolerance_sec=tolerance_sec)
+            )
         elif stype == "recovery":
             dur = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
             steps.append(_time_recovery(order, dur))
