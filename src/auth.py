@@ -7,7 +7,7 @@ from garminconnect import Garmin
 load_dotenv()
 
 _client: Garmin | None = None
-_TOKEN_STORE = Path.home() / ".garminconnect"
+_TOKEN_STORE = Path(os.getenv("GARMIN_TOKEN_STORE", str(Path.home() / ".garminconnect")))
 
 
 def get_client() -> Garmin:

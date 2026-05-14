@@ -13,7 +13,7 @@ check:
 	PYTHONPATH=src $(PYTHON) src/check.py
 
 clean-auth:
-	rm -rf ~/.garminconnect
+	rm -rf "$${GARMIN_TOKEN_STORE:-$$HOME/.garminconnect}"
 	@echo "OAuth cache cleared — next 'make check' will trigger a fresh login."
 
 test:
