@@ -9,28 +9,27 @@ FastMCP server that exposes Garmin Connect data and workout management to AI age
 ## Layer diagram
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    AI Agent / Claude                     │
-└──────────────────────────┬──────────────────────────────┘
-                           │  MCP (JSON-RPC over stdio)
-┌──────────────────────────▼──────────────────────────────┐
-│                  FastMCP  (app.py)                       │
-│   @mcp.tool() functions registered at import time        │
-├─────────────────────────────────────────────────────────┤
-│  tools/                                                  │
-│  ├── running.py   swimming.py   strength.py              │  ← workout builders
-│  ├── calendar.py                                         │  ← workout CRUD
-│  ├── activities.py  health.py  training.py  profile.py  │  ← read-only Garmin data
-│  └── plans.py                                            │  ← local file persistence
-├─────────────────────────────────────────────────────────┤
-│  tools/builder.py  (WorkoutBuilder base + repeat_group)  │
-├─────────────────────────────────────────────────────────┤
-│  auth.py  (Garmin client singleton)                      │
-└──────────────────────────┬──────────────────────────────┘
-                           │  HTTPS / garth OAuth
-┌──────────────────────────▼──────────────────────────────┐
-│              Garmin Connect API                          │
-└─────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                        AI Agent / Claude                          │
+└─────────────────────────────┬─────────────────────────────────────┘
+                              │  MCP (JSON-RPC over stdio)
+┌─────────────────────────────▼─────────────────────────────────────┐
+│                       FastMCP  (app.py)                           │
+│          @mcp.tool() functions registered at import time          │
+├───────────────────────────────────────────────────────────────────┤
+│  tools/                                                           │
+│  ├── running.py  swimming.py  strength.py   ← workout builders    │
+│  ├── calendar.py                            ← workout CRUD        │
+│  ├── activities.py  health.py  training.py  ← read-only data      │
+│  ├── profile.py  plans.py                  ← profile / files      │
+│  └── builder.py   (WorkoutBuilder + repeat_group)                 │
+├───────────────────────────────────────────────────────────────────┤
+│                   auth.py  (Garmin client singleton)              │
+└─────────────────────────────┬─────────────────────────────────────┘
+                              │  HTTPS / garth OAuth
+┌─────────────────────────────▼─────────────────────────────────────┐
+│                      Garmin Connect API                           │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
