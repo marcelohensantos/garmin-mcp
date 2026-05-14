@@ -27,6 +27,24 @@ def delete_workout(workout_id: str) -> str:
 
 
 @mcp.tool()
+def unschedule_workout(schedule_id: str) -> str:
+    """Remove a workout from the Garmin calendar without deleting the workout definition.
+    Use the workoutScheduleId returned by schedule_workout or get_scheduled_workouts."""
+    auth.get_client().unschedule_workout(schedule_id)
+    return json.dumps({"unscheduled": schedule_id})
+
+
+@mcp.tool()
+def rename_workout(workout_id: str, new_name: str) -> str:
+    """Rename an existing workout in Garmin Connect (any sport type). Preserves all steps."""
+    client = auth.get_client()
+    payload = client.get_workout_by_id(workout_id)
+    payload["workoutName"] = new_name
+    client.client.put("connectapi", f"/workout-service/workout/{workout_id}", json=payload)
+    return json.dumps({"workout_id": workout_id, "name": new_name})
+
+
+@mcp.tool()
 def get_scheduled_workouts(start_date: str, end_date: str) -> str:
     """
     Return workouts scheduled on the Garmin calendar between start_date and end_date (inclusive).
