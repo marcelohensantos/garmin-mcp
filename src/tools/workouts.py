@@ -55,7 +55,7 @@ def _pace_range_target(pace_fast: str, pace_slow: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Raw step dict builders (used when distance-based steps are needed)
+# Raw step dict builders
 # ---------------------------------------------------------------------------
 
 _STROKE = {"strokeTypeId": 0, "strokeTypeKey": None, "displayOrder": 0}
@@ -99,6 +99,17 @@ def _raw_warmup_distance(step_order: int, distance_m: float,
                           pace_fast: str = None, pace_slow: str = None) -> dict:
     tgt = _pace_range_target(pace_fast, pace_slow) if pace_fast and pace_slow else {}
     return _raw_step(1, "warmup", step_order,
+                     _COND_DIST, distance_m,
+                     target_type=tgt.get("targetType", _NO_TARGET),
+                     val_one=tgt.get("targetValueOne"),
+                     val_two=tgt.get("targetValueTwo"),
+                     pref_unit=_KM)
+
+
+def _raw_interval_distance(step_order: int, distance_m: float,
+                            pace_fast: str = None, pace_slow: str = None) -> dict:
+    tgt = _pace_range_target(pace_fast, pace_slow) if pace_fast and pace_slow else {}
+    return _raw_step(3, "interval", step_order,
                      _COND_DIST, distance_m,
                      target_type=tgt.get("targetType", _NO_TARGET),
                      val_one=tgt.get("targetValueOne"),
@@ -189,7 +200,6 @@ def _is_simple_easy(main_set: list[dict], repeat: int) -> bool:
 # ---------------------------------------------------------------------------
 
 def _build_single_step(spec: dict, order: int, tolerance_sec: int = 10):
-    """Build one executable step from a spec dict."""
     stype    = spec.get("type", "interval")
     duration = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
     pace     = spec.get("pace")
@@ -209,7 +219,6 @@ def _build_single_step(spec: dict, order: int, tolerance_sec: int = 10):
 
 
 def _step_duration(spec: dict) -> float:
-    """Total duration in seconds for a step spec, expanding nested repeats."""
     if spec.get("type") == "repeat":
         inner = sum(
             float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
@@ -221,7 +230,6 @@ def _step_duration(spec: dict) -> float:
 
 def _build_steps(main_set: list[dict], repeat: int, step_order_start: int,
                  tolerance_sec: int = 10) -> list:
-    """Build the main set steps, with optional outer repeat group."""
     inner = []
     for order, spec in enumerate(main_set, start=1):
         if spec.get("type") == "repeat":
@@ -240,12 +248,11 @@ def _build_steps(main_set: list[dict], repeat: int, step_order_start: int,
 
 
 # ---------------------------------------------------------------------------
-# Raw dict path — used when distance-based warmup/cooldown is requested
+# Raw dict path
 # ---------------------------------------------------------------------------
 
 def _build_raw_steps(main_set: list[dict], tolerance_sec: int,
                      step_order_start: int) -> list[dict]:
-    """Build main_set as raw step dicts (no Pydantic)."""
     steps = []
     order = step_order_start
     for spec in main_set:
@@ -282,33 +289,41 @@ def create_running_workout(workout_json: str) -> str:
     Create a structured running workout in Garmin Connect.
 
     workout_json schema:
+
+    Quality sessions (T / M / I pace) — distance-based warmup/cooldown with pace zone:
     {
-      "name": "Limiar — 2x6' T",
+      "name": "Limiar — 3×14' T",
       "description": "optional",
-
-      "warmup_km": 1,
-      "warmup_pace": ["6:00", "7:10"],
-
+      "warmup_km": 2,
+      "warmup_pace": ["5:26", "5:59"],
       "main_set": [
-        {"type": "repeat", "repeat": 2, "steps": [
-          {"type": "interval", "minutes": 6, "pace": "5:31"},
+        {"type": "repeat", "repeat": 3, "steps": [
+          {"type": "interval", "minutes": 14, "pace": "4:31"},
           {"type": "recovery", "minutes": 2}
         ]}
       ],
-
       "cooldown_km": 1,
-      "cooldown_pace": ["6:00", "7:10"],
-
+      "cooldown_pace": ["5:26", "5:59"],
       "pace_tolerance_sec": 5
     }
 
-    Alternative: use "warmup_minutes" / "cooldown_minutes" for time-based warmup/cooldown
-    (no pace guidance on device).
+    Easy / long runs — distance-based with E zone pace:
+    {
+      "name": "Rodagem Fácil — 12 km",
+      "main_km": 12,
+      "main_pace": ["5:26", "5:59"]
+    }
+
+    Run/walk or time-based easy (no pace guidance):
+    {
+      "name": "Easy 60min",
+      "warmup_minutes": 1,
+      "main_set": [{"type": "interval", "minutes": 58}],
+      "cooldown_minutes": 1
+    }
 
     pace format: "M:SS" per km. pace_tolerance_sec: ±seconds around target (default 10).
-    warmup_pace / cooldown_pace: [fast_pace, slow_pace] strings for the pace zone displayed
-    during warmup/cooldown (e.g. E zone ["6:00", "7:10"]).
-
+    warmup_pace / cooldown_pace / main_pace: [fast_pace, slow_pace] for pace zone bounds.
     All workouts end with an open lap-button cooldown step.
 
     Returns the created workout id and name.
@@ -324,34 +339,39 @@ def create_running_workout(workout_json: str) -> str:
     repeat        = int(spec.get("repeat", 1))
     tolerance_sec = int(spec.get("pace_tolerance_sec", 10))
 
-    warmup_km   = spec.get("warmup_km")
-    cooldown_km = spec.get("cooldown_km")
-    warmup_pace  = spec.get("warmup_pace")   # [fast, slow]
-    cooldown_pace = spec.get("cooldown_pace") # [fast, slow]
+    warmup_km    = spec.get("warmup_km")
+    cooldown_km  = spec.get("cooldown_km")
+    warmup_pace  = spec.get("warmup_pace")
+    cooldown_pace = spec.get("cooldown_pace")
+    main_km      = spec.get("main_km")
+    main_pace    = spec.get("main_pace")  # [fast, slow] — easy/long with pace zone
 
-    use_raw = warmup_km is not None or cooldown_km is not None
+    use_raw = warmup_km is not None or cooldown_km is not None or main_km is not None
 
     if use_raw:
-        wu_m  = float(warmup_km or 0) * 1000
-        cd_m  = float(cooldown_km or 0) * 1000
-        wp_f  = warmup_pace[0]  if warmup_pace  else None
-        wp_s  = warmup_pace[1]  if warmup_pace  else None
-        cp_f  = cooldown_pace[0] if cooldown_pace else None
-        cp_s  = cooldown_pace[1] if cooldown_pace else None
-
         steps = []
         order = 1
 
-        if wu_m:
-            steps.append(_raw_warmup_distance(order, wu_m, wp_f, wp_s))
+        if warmup_km:
+            steps.append(_raw_warmup_distance(order, float(warmup_km) * 1000,
+                                              warmup_pace[0] if warmup_pace else None,
+                                              warmup_pace[1] if warmup_pace else None))
             order += 1
 
-        main_steps = _build_raw_steps(main_set, tolerance_sec, order)
-        steps.extend(main_steps)
-        order += len(main_steps)
+        if main_km:
+            steps.append(_raw_interval_distance(order, float(main_km) * 1000,
+                                                main_pace[0] if main_pace else None,
+                                                main_pace[1] if main_pace else None))
+            order += 1
+        elif main_set:
+            main_steps = _build_raw_steps(main_set, tolerance_sec, order)
+            steps.extend(main_steps)
+            order += len(main_steps)
 
-        if cd_m:
-            steps.append(_raw_cooldown_distance(order, cd_m, cp_f, cp_s))
+        if cooldown_km:
+            steps.append(_raw_cooldown_distance(order, float(cooldown_km) * 1000,
+                                                cooldown_pace[0] if cooldown_pace else None,
+                                                cooldown_pace[1] if cooldown_pace else None))
             order += 1
 
         steps.append(_raw_lap_cooldown(order))
@@ -371,7 +391,7 @@ def create_running_workout(workout_json: str) -> str:
         workout_id = result.get("workoutId") or result.get("workout", {}).get("workoutId")
         return serialize({"workoutId": workout_id, "name": name})
 
-    # Time-based warmup/cooldown path (original)
+    # Time-based path (original)
     warmup_min   = float(spec.get("warmup_minutes", 10))
     cooldown_min = float(spec.get("cooldown_minutes", 10))
 
