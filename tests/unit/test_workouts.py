@@ -23,11 +23,12 @@ def test_pace_target_type_is_pace_zone():
     assert t["targetType"]["workoutTargetTypeKey"] == "pace.zone"
 
 
-def test_pace_target_values_in_seconds_per_meter():
-    # 4:31 = 271 s/km; tolerance ±10 s → slow=281s/km=0.281 s/m, fast=261s/km=0.261 s/m
+def test_pace_target_values_in_meters_per_second():
+    # 4:31 = 271 s/km; tolerance ±10 s → fast=261s/km, slow=281s/km (in m/s)
     t = _pace_target("4:31", tolerance_sec=10)
-    assert abs(t["targetValueOne"] - 0.281) < 1e-5  # slow bound
-    assert abs(t["targetValueTwo"] - 0.261) < 1e-5  # fast bound
+    assert abs(t["targetValueOne"] - round(1000 / 261, 7)) < 1e-5  # fast bound m/s
+    assert abs(t["targetValueTwo"] - round(1000 / 281, 7)) < 1e-5  # slow bound m/s
+    assert t["targetValueOne"] > t["targetValueTwo"]  # fast > slow in m/s
 
 
 # ---------------------------------------------------------------------------

@@ -104,7 +104,7 @@ Restart the client after saving.
 
 | Tool | Description |
 |------|-------------|
-| `create_running_workout` | Structured running workout — pace zones, repeat groups, lap-button cooldown |
+| `create_running_workout` | Structured running workout — pace zones, repeat groups, distance-based warmup/cooldown, lap-button cooldown |
 | `create_swimming_workout` | Structured pool swimming workout — distance-based steps, stroke types, repeat groups |
 | `create_strength_workout` | Strength session — exercises grouped as repeat sets with weight and rest |
 | `schedule_workout` | Schedule an existing workout on the Garmin calendar |
@@ -165,9 +165,11 @@ make test-integration
 - Exported files land in `~/garmin_exports/`.
 - MFA accounts: set `return_on_mfa=True` in `auth.py` and handle the prompt manually.
 - The first run triggers a full login; subsequent runs reuse cached OAuth tokens.
-- `create_running_workout` pace targets use `pace.zone` (min/km display on device).
-  Simple easy runs (single step, no pace) merge warmup + run + cooldown into one interval.
-  Run/walk and other repeat-group workouts work with no pace target — omit the `pace` field.
+- `create_running_workout` pace targets use `pace.zone` (min/km display on device) in m/s internally.
+  Simple easy runs (single no-pace interval): use `warmup_minutes` + `cooldown_minutes` — merged into one step.
+  Quality sessions (T/M pace): use `warmup_km` + `warmup_pace: ["fast", "slow"]` for distance-based warmup
+  with E zone guidance; same for `cooldown_km` + `cooldown_pace`. Use `pace_tolerance_sec` (default 10) to
+  control the width of the pace zone alert on device.
 - `create_swimming_workout` uses `sportTypeId: 4` (the library enum is incorrect — raw dict is used).
 - `create_strength_workout` uses `sportTypeId: 5` and the generic `upload_workout()` method.
   Set `weight_kg: -1.0` for bodyweight exercises.
