@@ -1,6 +1,7 @@
 # garmin-mcp
 
 [![CI](https://github.com/marcelohensantos/garmin-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/marcelohensantos/garmin-mcp/actions/workflows/ci.yml)
+[![Docker](https://github.com/marcelohensantos/garmin-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/marcelohensantos/garmin-mcp/pkgs/container/garmin-mcp)
 
 MCP server that exposes Garmin Connect data and workout management to AI agents.
 Supports tools, resources, and prompts — covering reading health data, creating and
@@ -58,6 +59,34 @@ or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 ```
 
 Restart the client after saving.
+
+### Docker (no Python setup required)
+
+```bash
+# First run — authenticate and cache OAuth tokens
+docker run --rm -it \
+  --env-file .env \
+  -v garmin-tokens:/root/.garminconnect \
+  --entrypoint python \
+  ghcr.io/marcelohensantos/garmin-mcp src/check.py
+
+# MCP client config
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "--env-file", "/path/to/garmin-mcp/.env",
+        "-v", "garmin-tokens:/root/.garminconnect",
+        "ghcr.io/marcelohensantos/garmin-mcp"
+      ]
+    }
+  }
+}
+```
+
+The `garmin-tokens` volume persists OAuth tokens across container restarts — you only authenticate once. Create `.env` with your credentials before the first run (see [Setup](#setup)).
 
 ---
 

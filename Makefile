@@ -1,7 +1,7 @@
 PYTHON = .venv/bin/python
 PIP    = .venv/bin/pip
 
-.PHONY: setup install check clean-auth test test-integration
+.PHONY: setup install check clean-auth test test-integration docker-build docker-login
 
 setup:
 	python3 setup.py
@@ -21,3 +21,13 @@ test:
 
 test-integration:
 	GARMIN_INTEGRATION=1 $(PYTHON) -m pytest tests/integration/ -v
+
+docker-build:
+	docker build -t garmin-mcp .
+
+docker-login:
+	docker run --rm -it \
+		--env-file .env \
+		-v garmin-tokens:/root/.garminconnect \
+		--entrypoint python \
+		garmin-mcp src/check.py
