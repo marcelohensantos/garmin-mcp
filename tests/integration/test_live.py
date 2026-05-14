@@ -5,7 +5,6 @@ Run with:
     GARMIN_INTEGRATION=1 pytest tests/integration/ -v
 """
 
-import json
 import os
 
 import pytest
