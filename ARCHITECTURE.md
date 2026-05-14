@@ -8,28 +8,37 @@ FastMCP server that exposes Garmin Connect data and workout management to AI age
 
 ## Layer diagram
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                        AI Agent / Claude                          │
-└─────────────────────────────┬─────────────────────────────────────┘
-                              │  MCP (JSON-RPC over stdio)
-┌─────────────────────────────▼─────────────────────────────────────┐
-│                       FastMCP  (app.py)                           │
-│          @mcp.tool() functions registered at import time          │
-├───────────────────────────────────────────────────────────────────┤
-│  tools/                                                           │
-│  ├── running.py  swimming.py  strength.py   ← workout builders    │
-│  ├── calendar.py                            ← workout CRUD        │
-│  ├── activities.py  health.py  training.py  ← read-only data      │
-│  ├── profile.py  plans.py                  ← profile / files      │
-│  └── builder.py   (WorkoutBuilder + repeat_group)                 │
-├───────────────────────────────────────────────────────────────────┤
-│                   auth.py  (Garmin client singleton)              │
-└─────────────────────────────┬─────────────────────────────────────┘
-                              │  HTTPS / garth OAuth
-┌─────────────────────────────▼─────────────────────────────────────┐
-│                      Garmin Connect API                           │
-└───────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Agent(["AI Agent / Claude"])
+
+    subgraph mcp["FastMCP — app.py"]
+        subgraph builders["Workout Builders  (tools/)"]
+            running["running.py\ncreate_running_workout\nupdate_running_workout"]
+            swimming["swimming.py\ncreate_swimming_workout"]
+            strength["strength.py\ncreate_strength_workout"]
+            builder["builder.py\nWorkoutBuilder · repeat_group"]
+        end
+
+        subgraph ops["Operations  (tools/)"]
+            calendar["calendar.py\nschedule · get · delete · get_scheduled"]
+            data["activities · health · training\nprofile · plans"]
+        end
+    end
+
+    auth["auth.py\nGarmin client singleton"]
+    garmin[("Garmin Connect API")]
+
+    Agent -->|"MCP / JSON-RPC over stdio"| mcp
+
+    running --> builder
+    swimming --> builder
+    strength --> builder
+    builder -->|"auth.get_client()"| auth
+    calendar -->|"auth.get_client()"| auth
+    data -->|"auth.get_client()"| auth
+
+    auth -->|"HTTPS / garth OAuth2"| garmin
 ```
 
 ---
@@ -106,31 +115,69 @@ classDiagram
 
 ## Sequence: create workout
 
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Tool as MCP Tool<br/>(e.g. create_running_workout)
+    participant Builder as ConcreteBuilder<br/>(RunningBuilder)
+    participant Auth as auth.get_client()
+    participant API as Garmin Connect API
+
+    Agent->>Tool: workout_json: str
+    Tool->>Tool: json.loads(workout_json)
+    alt invalid JSON
+        Tool-->>Agent: {"error": "Invalid JSON: ..."}
+    end
+
+    Tool->>Builder: _builder.create(spec)
+    activate Builder
+    Builder->>Builder: build_payload(spec)
+    Note right of Builder: pace zone math<br/>step assembly<br/>raw dict output
+
+    Builder->>Auth: get_client()
+    Auth-->>Builder: GarminClient (cached singleton)
+
+    Builder->>API: POST /workout-service/workout
+    API-->>Builder: {workoutId, workoutName, ...}
+    deactivate Builder
+
+    Builder-->>Tool: {workoutId, name}
+    Tool-->>Agent: serialize({workoutId, name})
 ```
-Agent → MCP tool (workout_json: str)
-         │
-         ├─ json.loads(workout_json)   # parse + validate
-         │
-         ├─ _builder.create(spec)
-         │     └─ build_payload(spec)  # sport-specific dict assembly
-         │
-         └─ GarminClient.upload_workout(payload)  # POST /workout-service/workout
-              └─ returns {workoutId, name}
-```
+
+---
 
 ## Sequence: update workout
 
-```
-Agent → MCP tool (workout_id, workout_json: str)
-         │
-         ├─ json.loads(workout_json)
-         │
-         ├─ _builder.update(workout_id, spec)
-         │     ├─ build_payload(spec)
-         │     ├─ payload["workoutId"] = int(workout_id)
-         │     └─ client.client.put(…/workout/{id}, json=payload)  # PUT, preserves scheduling
-         │
-         └─ returns {workoutId, name, updated: true}
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Tool as MCP Tool<br/>(update_running_workout)
+    participant Builder as RunningBuilder
+    participant Auth as auth.get_client()
+    participant API as Garmin Connect API
+
+    Agent->>Tool: workout_id: str, workout_json: str
+    Tool->>Tool: json.loads(workout_json)
+    alt invalid JSON
+        Tool-->>Agent: {"error": "Invalid JSON: ..."}
+    end
+
+    Tool->>Builder: _builder.update(workout_id, spec)
+    activate Builder
+    Builder->>Builder: build_payload(spec)
+    Builder->>Builder: payload["workoutId"] = int(workout_id)
+
+    Builder->>Auth: get_client()
+    Auth-->>Builder: GarminClient (cached singleton)
+
+    Builder->>API: PUT /workout-service/workout/{id}
+    Note right of API: Preserves workoutScheduleId<br/>Calendar scheduling intact
+    API-->>Builder: 204 No Content
+    deactivate Builder
+
+    Builder-->>Tool: {workoutId, name, updated: true}
+    Tool-->>Agent: serialize({workoutId, name, updated: true})
 ```
 
 ---
@@ -161,12 +208,6 @@ Agent → MCP tool (workout_id, workout_json: str)
 ### Template Method — `WorkoutBuilder`
 
 `create()` and `update()` define the algorithm skeleton (parse → build → upload/PUT). Sport-specific subclasses override only `build_payload()` — the part that varies. The upload call, error path, and return format are inherited and never duplicated.
-
-```
-WorkoutBuilder.create(spec)
-    └── self.build_payload(spec)   ← overridden by each sport
-    └── upload_workout(payload)    ← inherited, same for all
-```
 
 ### Strategy — concrete builders
 
@@ -206,32 +247,30 @@ Each sport module instantiates its builder once at module load (`_builder = Runn
 
 **Decision:** All tool modules live at the same level in `tools/`.
 
-**Why:** With three sport-specific builders, a subpackage adds structural overhead (extra `__init__.py`, import path changes) without improving navigability. A fourth sport would revisit this — the `WorkoutBuilder` base is already in place to make that migration trivial.
+**Why:** With three sport-specific builders, a subpackage adds structural overhead without improving navigability. A fourth sport would revisit this — the `WorkoutBuilder` base is already in place to make that migration trivial.
 
 ### `calendar.py` name over `workouts.py`
 
 **Decision:** The CRUD module is named `calendar.py`, not `workouts.py`.
 
-**Why:** `schedule_workout`, `get_workouts`, `delete_workout`, `get_scheduled_workouts` operate on the Garmin calendar, not on workout content. `workouts.py` implied ownership of workout creation, which now belongs to `running.py`, `swimming.py`, and `strength.py`. `calendar.py` names the domain correctly.
+**Why:** `schedule_workout`, `get_workouts`, `delete_workout`, `get_scheduled_workouts` operate on the Garmin calendar, not on workout content. `workouts.py` implied ownership of workout creation, which now belongs to the sport-specific builders.
 
 ### Pace zone in m/s, not s/m
 
 **Decision:** `pace.zone` targets use meters-per-second (`targetValueOne`, `targetValueTwo`), where `targetValueOne > targetValueTwo` (faster pace = higher m/s).
 
-**Why:** The Garmin API stores pace zones in m/s regardless of the `min/km` display on the device. The conversion is `1000 / seconds_per_km`. Tolerance is applied before conversion: fast bound = `1000 / (total_sec - tol)`, slow bound = `1000 / (total_sec + tol)`.
+**Why:** The Garmin API stores pace zones in m/s regardless of the `min/km` display on the device. Tolerance is applied before conversion: fast bound = `1000 / (total_sec - tol)`, slow bound = `1000 / (total_sec + tol)`.
 
 ---
 
 ## Pace math reference
 
 ```
-pace "4:31" = 271 s/km
-tolerance   = ±5 s
+pace "4:31" = 271 s/km  |  tolerance ±5 s
+  fast bound (targetValueOne) = 1000 / 266 ≈ 3.7594 m/s
+  slow bound (targetValueTwo) = 1000 / 276 ≈ 3.6232 m/s
 
-fast bound (targetValueOne) = 1000 / (271 - 5) = 1000 / 266 ≈ 3.7594 m/s
-slow bound (targetValueTwo) = 1000 / (271 + 5) = 1000 / 276 ≈ 3.6232 m/s
-
-E zone "5:26"–"5:59" (no tolerance, range target):
+E zone "5:26"–"5:59"  (range target, no tolerance)
   fast = 1000 / 326 ≈ 3.0675 m/s
   slow = 1000 / 359 ≈ 2.7855 m/s
 ```
@@ -247,13 +286,11 @@ Distance-based (quality sessions):          Time-based (run/walk):
   "warmup_km": 2,                            "warmup_minutes": 5,
   "warmup_pace": ["5:26", "5:59"],           "main_set": [
   "main_set": [{                               {"type": "interval", "minutes": 2},
-    "type": "repeat",                          {"type": "recovery", "minutes": 2}
-    "repeat": 3,                             ],
-    "steps": [                               "repeat": 7,
-      {"type": "interval",                   "cooldown_minutes": 5
-       "minutes": 14,                       }
-       "pace": "4:31"},
-      {"type": "recovery", "minutes": 2}
+    "type": "repeat", "repeat": 3,             {"type": "recovery", "minutes": 2}
+    "steps": [                               ],
+      {"type": "interval",                   "repeat": 7,
+       "minutes": 14, "pace": "4:31"},       "cooldown_minutes": 5
+      {"type": "recovery", "minutes": 2}    }
     ]
   }],
   "cooldown_km": 1,
