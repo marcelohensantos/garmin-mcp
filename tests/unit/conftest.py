@@ -51,6 +51,9 @@ def garmin_mock():
         },
     ]
 
+    import cache
+    cache.invalidate()
     with patch("auth.get_client", return_value=mock):
         yield mock
+    cache.invalidate()
 # note: save_plan uses real filesystem via tmp_path; no mock needed
