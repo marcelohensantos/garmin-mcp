@@ -29,9 +29,9 @@ def garmin_mock():
     mock.get_devices.return_value = [{"deviceId": 9999, "productDisplayName": "Forerunner 965"}]
     mock.profile = {"userName": "testuser"}
     mock.get_gear.return_value = [{"gearPk": 1, "customMakeModel": "Nike Vomero"}]
-    mock.upload_running_workout.return_value = {"workoutId": 99999, "workoutName": "Test Workout"}
+    mock.upload_workout.return_value          = {"workoutId": 99999, "workoutName": "Test Workout"}
     mock.upload_swimming_workout.return_value = {"workoutId": 77777, "workoutName": "Test Swim"}
-    mock.upload_workout.return_value           = {"workoutId": 55555, "workoutName": "Test Strength"}
+    mock.upload_strength_workout              = mock.upload_workout  # alias for strength tests
     mock.schedule_workout.return_value = {"scheduledWorkoutId": 11111, "date": "2026-05-15"}
     mock.get_workouts.return_value = [{"workoutId": 99999, "workoutName": "Test Workout"}]
     mock.delete_workout.return_value = None

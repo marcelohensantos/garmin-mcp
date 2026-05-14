@@ -15,7 +15,7 @@ _PUSH_WORKOUT = json.dumps({
 
 def test_create_strength_workout_returns_id(garmin_mock):
     result = json.loads(create_strength_workout(_PUSH_WORKOUT))
-    assert result["workoutId"] == 55555
+    assert result["workoutId"] == 99999
     assert result["name"] == "Push"
     garmin_mock.upload_workout.assert_called_once()
 

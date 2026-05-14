@@ -9,6 +9,7 @@ from tools.workouts import (
     get_scheduled_workouts,
     get_workouts,
     schedule_workout,
+    update_running_workout,
 )
 
 
@@ -52,7 +53,7 @@ def test_create_running_workout_returns_id(garmin_mock):
     result = json.loads(create_running_workout(_THRESHOLD_WORKOUT))
     assert result["workoutId"] == 99999
     assert result["name"] == "Threshold 3x14min"
-    garmin_mock.upload_running_workout.assert_called_once()
+    garmin_mock.upload_workout.assert_called_once()
 
 
 def test_create_running_workout_invalid_json(garmin_mock):
@@ -82,22 +83,22 @@ def test_simple_easy_merges_into_one_step(garmin_mock):
         "cooldown_minutes": 5,
     })
     create_running_workout(spec)
-    call_args = garmin_mock.upload_running_workout.call_args[0][0]
-    steps = call_args.workoutSegments[0].workoutSteps
+    call_args = garmin_mock.upload_workout.call_args[0][0]
+    steps = call_args["workoutSegments"][0]["workoutSteps"]
     assert len(steps) == 2
-    assert steps[0].endConditionValue == 40 * 60  # 5+30+5 merged
-    assert steps[1].endCondition["conditionTypeKey"] == "lap.button"
-    assert steps[1].endConditionValue is None
+    assert steps[0]["endConditionValue"] == 40 * 60  # 5+30+5 merged
+    assert steps[1]["endCondition"]["conditionTypeKey"] == "lap.button"
+    assert steps[1]["endConditionValue"] is None
 
 
 def test_complex_workout_ends_with_lap_cooldown(garmin_mock):
     """Structured workout: warmup + main set + lap-button cooldown (no time-based cooldown)."""
     create_running_workout(_THRESHOLD_WORKOUT)
-    call_args = garmin_mock.upload_running_workout.call_args[0][0]
-    steps = call_args.workoutSegments[0].workoutSteps
+    call_args = garmin_mock.upload_workout.call_args[0][0]
+    steps = call_args["workoutSegments"][0]["workoutSteps"]
     last = steps[-1]
-    assert last.endCondition["conditionTypeKey"] == "lap.button"
-    assert last.endConditionValue is None
+    assert last["endCondition"]["conditionTypeKey"] == "lap.button"
+    assert last["endConditionValue"] is None
 
 
 _STRIDES_WORKOUT = json.dumps({
@@ -120,17 +121,50 @@ _STRIDES_WORKOUT = json.dumps({
 
 
 def test_nested_repeat_group_is_created(garmin_mock):
-    """Nested repeat block produces a RepeatGroup step (not flat stride steps)."""
+    """Nested repeat block produces a RepeatGroupDTO step (not flat stride steps)."""
     result = json.loads(create_running_workout(_STRIDES_WORKOUT))
     assert result["workoutId"] == 99999
 
-    call_args = garmin_mock.upload_running_workout.call_args[0][0]
-    steps = call_args.workoutSegments[0].workoutSteps
+    call_args = garmin_mock.upload_workout.call_args[0][0]
+    steps = call_args["workoutSegments"][0]["workoutSteps"]
     # warmup, easy interval, repeat group, lap cooldown
     assert len(steps) == 4
     repeat_group = steps[2]
-    assert repeat_group.numberOfIterations == 6
-    assert len(repeat_group.workoutSteps) == 2
+    assert repeat_group["numberOfIterations"] == 6
+    assert len(repeat_group["workoutSteps"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# update_running_workout
+# ---------------------------------------------------------------------------
+
+
+def test_update_running_workout_calls_put(garmin_mock):
+    """update_running_workout should PUT, not POST, and return updated: true."""
+    spec = json.dumps({
+        "name": "Limiar — 3×14' T",
+        "warmup_km": 2,
+        "warmup_pace": ["5:26", "5:59"],
+        "main_set": [
+            {"type": "repeat", "repeat": 3, "steps": [
+                {"type": "interval", "minutes": 14, "pace": "4:31"},
+                {"type": "recovery", "minutes": 2},
+            ]}
+        ],
+        "cooldown_km": 1,
+        "cooldown_pace": ["5:26", "5:59"],
+        "pace_tolerance_sec": 5,
+    })
+    result = json.loads(update_running_workout("99999", spec))
+    assert result["updated"] is True
+    assert result["workoutId"] == 99999
+    garmin_mock.client.put.assert_called_once()
+    garmin_mock.upload_workout.assert_not_called()
+
+
+def test_update_running_workout_invalid_json(garmin_mock):
+    result = json.loads(update_running_workout("99999", "bad json"))
+    assert "error" in result
 
 
 # ---------------------------------------------------------------------------

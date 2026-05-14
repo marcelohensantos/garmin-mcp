@@ -3,15 +3,6 @@ from datetime import datetime
 
 import auth
 from app import mcp
-from garminconnect.workout import (
-    RunningWorkout,
-    WorkoutSegment,
-    create_cooldown_step,
-    create_interval_step,
-    create_recovery_step,
-    create_repeat_group,
-    create_warmup_step,
-)
 from utils import serialize
 
 
@@ -166,24 +157,8 @@ def _raw_repeat_group(step_order: int, n: int, steps: list,
 
 
 # ---------------------------------------------------------------------------
-# Step helpers (Pydantic path — kept for simple time-based workouts)
+# Payload builder
 # ---------------------------------------------------------------------------
-
-_LAP_BUTTON_CONDITION = {
-    "conditionTypeId": 1,
-    "conditionTypeKey": "lap.button",
-    "displayOrder": 1,
-    "displayable": True,
-}
-
-
-def _lap_cooldown(step_order: int):
-    """Cooldown step that ends when the user presses the lap button."""
-    step = create_cooldown_step(0, step_order)
-    step.endCondition      = _LAP_BUTTON_CONDITION
-    step.endConditionValue = None
-    return step
-
 
 def _is_simple_easy(main_set: list[dict], repeat: int) -> bool:
     """True when the workout is a single no-pace interval (pure easy run)."""
@@ -195,64 +170,9 @@ def _is_simple_easy(main_set: list[dict], repeat: int) -> bool:
     )
 
 
-# ---------------------------------------------------------------------------
-# Step builder (Pydantic path)
-# ---------------------------------------------------------------------------
-
-def _build_single_step(spec: dict, order: int, tolerance_sec: int = 10):
-    stype    = spec.get("type", "interval")
-    duration = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
-    pace     = spec.get("pace")
-    target   = _pace_target(pace, tolerance_sec) if pace else {}
-
-    if stype == "interval":
-        step = create_interval_step(duration, order, target.get("targetType"))
-        if target:
-            step.targetType                    = target["targetType"]
-            step.model_extra["targetValueOne"] = target["targetValueOne"]
-            step.model_extra["targetValueTwo"] = target["targetValueTwo"]
-    elif stype == "recovery":
-        step = create_recovery_step(duration, order)
-    else:
-        step = create_interval_step(duration, order)
-    return step
-
-
-def _step_duration(spec: dict) -> float:
-    if spec.get("type") == "repeat":
-        inner = sum(
-            float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
-            for s in spec.get("steps", [])
-        )
-        return inner * int(spec.get("repeat", 1))
-    return float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
-
-
-def _build_steps(main_set: list[dict], repeat: int, step_order_start: int,
-                 tolerance_sec: int = 10) -> list:
-    inner = []
-    for order, spec in enumerate(main_set, start=1):
-        if spec.get("type") == "repeat":
-            nested = [_build_single_step(s, i + 1, tolerance_sec)
-                      for i, s in enumerate(spec.get("steps", []))]
-            inner.append(create_repeat_group(int(spec.get("repeat", 1)), nested, order))
-        else:
-            inner.append(_build_single_step(spec, order, tolerance_sec))
-
-    if repeat > 1:
-        return [create_repeat_group(repeat, inner, step_order_start)]
-    return [
-        s.__class__(**{**s.model_dump(exclude_none=True), "stepOrder": step_order_start + i})
-        for i, s in enumerate(inner)
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Raw dict path
-# ---------------------------------------------------------------------------
-
-def _build_raw_steps(main_set: list[dict], tolerance_sec: int,
-                     step_order_start: int) -> list[dict]:
+def _build_main_steps(main_set: list[dict], tolerance_sec: int,
+                      step_order_start: int) -> list[dict]:
+    """Build raw step dicts for a main_set list, starting at step_order_start."""
     steps = []
     order = step_order_start
     for spec in main_set:
@@ -260,7 +180,7 @@ def _build_raw_steps(main_set: list[dict], tolerance_sec: int,
             inner_steps = []
             inner_order = order + 1
             for s in spec.get("steps", []):
-                dur = float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
+                dur   = float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
                 stype = s.get("type", "interval")
                 if stype == "interval":
                     inner_steps.append(_raw_interval(inner_order, dur, 1,
@@ -277,6 +197,78 @@ def _build_raw_steps(main_set: list[dict], tolerance_sec: int,
             steps.append(_raw_recovery(order, dur, None))
         order += 1
     return steps
+
+
+def _build_workout_payload(spec: dict) -> dict:
+    """Build the full workout payload dict from a spec (used by create and update)."""
+    name          = spec.get("name", "Workout")
+    description   = spec.get("description")
+    main_set      = spec.get("main_set", [])
+    repeat        = int(spec.get("repeat", 1))
+    tolerance_sec = int(spec.get("pace_tolerance_sec", 10))
+    warmup_km     = spec.get("warmup_km")
+    cooldown_km   = spec.get("cooldown_km")
+    warmup_pace   = spec.get("warmup_pace")
+    cooldown_pace = spec.get("cooldown_pace")
+    main_km       = spec.get("main_km")
+    main_pace     = spec.get("main_pace")
+
+    steps = []
+    order = 1
+
+    if warmup_km is not None or cooldown_km is not None or main_km is not None:
+        if warmup_km:
+            steps.append(_raw_warmup_distance(order, float(warmup_km) * 1000,
+                                              warmup_pace[0] if warmup_pace else None,
+                                              warmup_pace[1] if warmup_pace else None))
+            order += 1
+        if main_km:
+            steps.append(_raw_interval_distance(order, float(main_km) * 1000,
+                                                main_pace[0] if main_pace else None,
+                                                main_pace[1] if main_pace else None))
+            order += 1
+        elif main_set:
+            raw = _build_main_steps(main_set, tolerance_sec, order)
+            steps.extend(raw)
+            order += len(raw)
+        if cooldown_km:
+            steps.append(_raw_cooldown_distance(order, float(cooldown_km) * 1000,
+                                                cooldown_pace[0] if cooldown_pace else None,
+                                                cooldown_pace[1] if cooldown_pace else None))
+            order += 1
+    else:
+        warmup_min   = float(spec.get("warmup_minutes", 10))
+        cooldown_min = float(spec.get("cooldown_minutes", 10))
+        if _is_simple_easy(main_set, repeat):
+            s         = main_set[0]
+            total_sec = int((warmup_min + float(s.get("minutes", 0)) + cooldown_min) * 60)
+            steps.append(_raw_step(3, "interval", order, _COND_TIME, float(total_sec)))
+            order += 1
+        else:
+            steps.append(_raw_step(1, "warmup", order, _COND_TIME, warmup_min * 60))
+            order += 1
+            inner = _build_main_steps(main_set, tolerance_sec, 1)
+            if repeat > 1:
+                steps.append(_raw_repeat_group(order, repeat, inner))
+                order += 1
+            else:
+                for i, s in enumerate(inner):
+                    s["stepOrder"] = order + i
+                steps.extend(inner)
+                order += len(inner)
+
+    steps.append(_raw_lap_cooldown(order))
+
+    return {
+        "workoutName": name,
+        "description": description,
+        "sportType": {"sportTypeId": 1, "sportTypeKey": "running", "displayOrder": 1},
+        "workoutSegments": [{
+            "segmentOrder": 1,
+            "sportType": {"sportTypeId": 1, "sportTypeKey": "running", "displayOrder": 1},
+            "workoutSteps": steps,
+        }],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -333,100 +325,32 @@ def create_running_workout(workout_json: str) -> str:
     except json.JSONDecodeError as e:
         return json.dumps({"error": f"Invalid JSON: {e}"})
 
-    name          = spec.get("name", "Workout")
-    description   = spec.get("description")
-    main_set      = spec.get("main_set", [])
-    repeat        = int(spec.get("repeat", 1))
-    tolerance_sec = int(spec.get("pace_tolerance_sec", 10))
-
-    warmup_km    = spec.get("warmup_km")
-    cooldown_km  = spec.get("cooldown_km")
-    warmup_pace  = spec.get("warmup_pace")
-    cooldown_pace = spec.get("cooldown_pace")
-    main_km      = spec.get("main_km")
-    main_pace    = spec.get("main_pace")  # [fast, slow] — easy/long with pace zone
-
-    use_raw = warmup_km is not None or cooldown_km is not None or main_km is not None
-
-    if use_raw:
-        steps = []
-        order = 1
-
-        if warmup_km:
-            steps.append(_raw_warmup_distance(order, float(warmup_km) * 1000,
-                                              warmup_pace[0] if warmup_pace else None,
-                                              warmup_pace[1] if warmup_pace else None))
-            order += 1
-
-        if main_km:
-            steps.append(_raw_interval_distance(order, float(main_km) * 1000,
-                                                main_pace[0] if main_pace else None,
-                                                main_pace[1] if main_pace else None))
-            order += 1
-        elif main_set:
-            main_steps = _build_raw_steps(main_set, tolerance_sec, order)
-            steps.extend(main_steps)
-            order += len(main_steps)
-
-        if cooldown_km:
-            steps.append(_raw_cooldown_distance(order, float(cooldown_km) * 1000,
-                                                cooldown_pace[0] if cooldown_pace else None,
-                                                cooldown_pace[1] if cooldown_pace else None))
-            order += 1
-
-        steps.append(_raw_lap_cooldown(order))
-
-        workout_payload = {
-            "workoutName": name,
-            "description": description,
-            "sportType": {"sportTypeId": 1, "sportTypeKey": "running", "displayOrder": 1},
-            "workoutSegments": [{
-                "segmentOrder": 1,
-                "sportType": {"sportTypeId": 1, "sportTypeKey": "running", "displayOrder": 1},
-                "workoutSteps": steps,
-            }],
-        }
-
-        result = auth.get_client().upload_workout(workout_payload)
-        workout_id = result.get("workoutId") or result.get("workout", {}).get("workoutId")
-        return serialize({"workoutId": workout_id, "name": name})
-
-    # Time-based path (original)
-    warmup_min   = float(spec.get("warmup_minutes", 10))
-    cooldown_min = float(spec.get("cooldown_minutes", 10))
-
-    if _is_simple_easy(main_set, repeat):
-        s         = main_set[0]
-        total_sec = int((warmup_min + float(s.get("minutes", 0)) + cooldown_min) * 60)
-        all_steps = [create_interval_step(total_sec, step_order=1), _lap_cooldown(step_order=2)]
-    else:
-        warmup    = create_warmup_step(warmup_min * 60, step_order=1)
-        main      = _build_steps(main_set, repeat, step_order_start=2,
-                                  tolerance_sec=tolerance_sec)
-        lap_cd    = _lap_cooldown(step_order=2 + len(main))
-        all_steps = [warmup, *main, lap_cd]
-        total_sec = int(
-            warmup_min * 60
-            + sum(_step_duration(s) for s in main_set) * repeat
-            + cooldown_min * 60
-        )
-
-    workout = RunningWorkout(
-        workoutName=name,
-        description=description,
-        estimatedDurationInSecs=total_sec,
-        workoutSegments=[
-            WorkoutSegment(
-                segmentOrder=1,
-                sportType={"sportTypeId": 1, "sportTypeKey": "running", "displayOrder": 1},
-                workoutSteps=all_steps,
-            )
-        ],
-    )
-
-    result     = auth.get_client().upload_running_workout(workout)
+    payload    = _build_workout_payload(spec)
+    result     = auth.get_client().upload_workout(payload)
     workout_id = result.get("workoutId") or result.get("workout", {}).get("workoutId")
-    return serialize({"workoutId": workout_id, "name": name, "estimatedDurationSecs": total_sec})
+    return serialize({"workoutId": workout_id, "name": spec.get("name", "Workout")})
+
+
+@mcp.tool()
+def update_running_workout(workout_id: str, workout_json: str) -> str:
+    """
+    Update an existing running workout in place (PUT).
+    Accepts the same workout_json schema as create_running_workout.
+    Preserves the workout ID and all calendar scheduling — no need to reschedule.
+
+    Returns the workout id, name, and updated: true.
+    """
+    try:
+        spec = json.loads(workout_json)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON: {e}"})
+
+    payload                = _build_workout_payload(spec)
+    payload["workoutId"]   = int(workout_id)
+    client                 = auth.get_client()
+    client.client.put("connectapi", f"/workout-service/workout/{workout_id}", json=payload)
+    return serialize({"workoutId": int(workout_id), "name": spec.get("name", "Workout"),
+                      "updated": True})
 
 
 @mcp.tool()
