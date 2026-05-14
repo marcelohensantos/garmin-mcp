@@ -8,38 +8,27 @@ scheduling structured workouts, and guided coaching workflows.
 
 ## Setup
 
-### 1. Clone & install
-
 ```bash
 git clone https://github.com/marcelohensantos/garmin-mcp
 cd garmin-mcp
-python3 -m venv .venv
-make install
+make setup
 ```
 
-### 2. Configure credentials
+`make setup` handles everything interactively:
+- prompts for your Garmin Connect credentials and creates `.env`
+- creates the virtual environment and installs dependencies
+- tests the connection against the Garmin API
+- prints the exact JSON snippet to paste into your MCP client
 
-Create `.env`:
+> **First login** triggers a Garmin OAuth flow. If you have MFA enabled, check your
+> email for a verification link, then re-run `make setup` or `make check`.
 
-```env
-GARMIN_EMAIL=seu@email.com
-GARMIN_PASSWORD=suasenha
-```
-
-OAuth tokens are cached automatically at `~/.garminconnect/` after the first login.
-
-> **Switching accounts?** Clear the cache before running `make check`:
+> **Switching accounts?** Clear the cached tokens first:
 > ```bash
-> make clean-auth
+> make clean-auth && make setup
 > ```
 
-### 3. Verify connection
-
-```bash
-make check
-```
-
-### 4. Configure your MCP client
+### Configure your MCP client
 
 **Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):

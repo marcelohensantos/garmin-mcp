@@ -1,7 +1,10 @@
 PYTHON = .venv/bin/python
 PIP    = .venv/bin/pip
 
-.PHONY: install check clean-auth test test-integration
+.PHONY: setup install check clean-auth test test-integration
+
+setup:
+	python3 setup.py
 
 install:
 	$(PIP) install -r requirements.txt
