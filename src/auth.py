@@ -25,8 +25,12 @@ def get_client() -> Garmin:
 
     _TOKEN_STORE.mkdir(exist_ok=True)
 
-    client = Garmin(email=email, password=password, return_on_mfa=False)
-    client.login(str(_TOKEN_STORE))
+    from errors import GarminAuthError
+    try:
+        client = Garmin(email=email, password=password, return_on_mfa=False)
+        client.login(str(_TOKEN_STORE))
+    except Exception as exc:
+        raise GarminAuthError(f"Login failed: {exc}") from exc
 
     _client = client
     return _client
