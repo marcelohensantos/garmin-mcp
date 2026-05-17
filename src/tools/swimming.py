@@ -169,3 +169,16 @@ def create_swimming_workout(workout_json: str) -> str:
     result["estimatedDistanceMeters"] = sum(_step_distance(s)
                                             for s in spec.get("main_set", []))
     return serialize(result)
+
+
+@mcp.tool()
+def update_swimming_workout(workout_id: str, workout_json: str) -> str:
+    """
+    Update an existing swimming workout in place (PUT).
+    Same schema as create_swimming_workout. Preserves workout ID and calendar scheduling.
+    """
+    try:
+        spec = json.loads(workout_json)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON: {e}"})
+    return serialize(_builder.update(workout_id, spec))
