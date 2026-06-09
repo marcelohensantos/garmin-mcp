@@ -85,6 +85,28 @@ def _time_recovery(order: int, duration_sec: float, child_id: int = None) -> dic
     return _step(4, "recovery", order, _COND_TIME, duration_sec, child_id=child_id)
 
 
+def _dist_interval(order: int, distance_m: float, child_id: int = None,
+                   pace: str = None, tolerance_sec: int = 10) -> dict:
+    tgt = _pace_target(pace, tolerance_sec) if pace else {}
+    return _step(3, "interval", order, _COND_DIST, distance_m,
+                 target=tgt.get("targetType"), val_one=tgt.get("targetValueOne"),
+                 val_two=tgt.get("targetValueTwo"), child_id=child_id, pref_unit=_KM)
+
+
+def _dist_recovery(order: int, distance_m: float, child_id: int = None) -> dict:
+    return _step(4, "recovery", order, _COND_DIST, distance_m,
+                 child_id=child_id, pref_unit=_KM)
+
+
+def _step_distance_m(spec: dict):
+    """Return distance in meters if the step is distance-based, else None."""
+    if spec.get("km") is not None:
+        return float(spec["km"]) * 1000
+    if spec.get("meters") is not None:
+        return float(spec["meters"])
+    return None
+
+
 def _lap_cooldown(order: int) -> dict:
     return _step(2, "cooldown", order, _COND_LAP, None)
 
@@ -102,21 +124,41 @@ def _build_main(main_set: list[dict], tolerance_sec: int, order_start: int) -> l
             inner_order = order + 1
             inner = []
             for s in spec.get("steps", []):
-                dur = float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
+                dist_m = _step_distance_m(s)
                 if s.get("type") == "interval":
-                    inner.append(_time_interval(inner_order, dur, 1, s.get("pace"), tolerance_sec))
+                    if dist_m is not None:
+                        inner.append(
+                            _dist_interval(inner_order, dist_m, 1, s.get("pace"), tolerance_sec)
+                        )
+                    else:
+                        dur = float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
+                        inner.append(_time_interval(inner_order, dur, 1, s.get("pace"), tolerance_sec))
                 else:
-                    inner.append(_time_recovery(inner_order, dur, 1))
+                    if dist_m is not None:
+                        inner.append(_dist_recovery(inner_order, dist_m, 1))
+                    else:
+                        dur = float(s.get("minutes", 0)) * 60 + float(s.get("seconds", 0))
+                        inner.append(_time_recovery(inner_order, dur, 1))
                 inner_order += 1
             steps.append(repeat_group(order, int(spec.get("repeat", 1)), inner))
         elif stype == "interval":
-            dur = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
-            steps.append(  # noqa: E501
-                _time_interval(order, dur, pace=spec.get("pace"), tolerance_sec=tolerance_sec)
-            )
+            dist_m = _step_distance_m(spec)
+            if dist_m is not None:
+                steps.append(
+                    _dist_interval(order, dist_m, pace=spec.get("pace"), tolerance_sec=tolerance_sec)
+                )
+            else:
+                dur = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
+                steps.append(  # noqa: E501
+                    _time_interval(order, dur, pace=spec.get("pace"), tolerance_sec=tolerance_sec)
+                )
         elif stype == "recovery":
-            dur = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
-            steps.append(_time_recovery(order, dur))
+            dist_m = _step_distance_m(spec)
+            if dist_m is not None:
+                steps.append(_dist_recovery(order, dist_m))
+            else:
+                dur = float(spec.get("minutes", 0)) * 60 + float(spec.get("seconds", 0))
+                steps.append(_time_recovery(order, dur))
         order += 1
     return steps
 
@@ -216,6 +258,18 @@ def create_running_workout(workout_json: str) -> str:
       ],
       "cooldown_km": 1, "cooldown_pace": ["5:26", "5:59"],
       "pace_tolerance_sec": 5
+    }
+
+    Distance-based intervals in main_set — use "km" (or "meters") instead of "minutes":
+    {
+      "name": "TT — 2×1.5 km",
+      "warmup_km": 2, "warmup_pace": ["6:45", "7:30"],
+      "main_set": [
+        {"type": "repeat", "repeat": 2, "steps": [
+          {"type": "interval", "km": 1.5, "pace": "4:40"}
+        ]},
+        {"type": "interval", "km": 9}
+      ]
     }
 
     Easy / long runs — distance-based with pace zone:

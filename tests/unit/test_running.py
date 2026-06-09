@@ -112,6 +112,61 @@ def test_nested_repeat_group_is_created(garmin_mock):
 
 
 # ---------------------------------------------------------------------------
+# Distance-based intervals in main_set
+# ---------------------------------------------------------------------------
+
+_TT_DISTANCE = json.dumps({
+    "name": "TT — 2x1.5km + Easy",
+    "warmup_km": 2, "warmup_pace": ["6:45", "7:30"],
+    "main_set": [
+        {"type": "repeat", "repeat": 2, "steps": [
+            {"type": "interval", "km": 1.5, "pace": "4:40"},
+        ]},
+        {"type": "interval", "km": 9},
+    ],
+    "pace_tolerance_sec": 10,
+})
+
+
+def test_distance_interval_uses_distance_end_condition(garmin_mock):
+    """km in a main_set interval creates a distance step, not a 0s time step."""
+    create_running_workout(_TT_DISTANCE)
+    steps = garmin_mock.upload_workout.call_args[0][0]["workoutSegments"][0]["workoutSteps"]
+    # warmup, repeat group (2×1.5km), easy 9km interval, lap cooldown
+    assert len(steps) == 4
+
+    rep = steps[1]
+    inner = rep["workoutSteps"][0]
+    assert inner["endCondition"]["conditionTypeKey"] == "distance"
+    assert inner["endConditionValue"] == 1500
+    assert inner["targetType"]["workoutTargetTypeKey"] == "pace.zone"
+
+    easy = steps[2]
+    assert easy["endCondition"]["conditionTypeKey"] == "distance"
+    assert easy["endConditionValue"] == 9000
+    assert easy["targetType"]["workoutTargetTypeKey"] == "no.target"
+
+
+def test_distance_and_time_intervals_coexist(garmin_mock):
+    """A main_set mixing km and minutes builds both step kinds correctly."""
+    spec = json.dumps({
+        "name": "Mixed",
+        "warmup_km": 1,
+        "main_set": [
+            {"type": "interval", "km": 2, "pace": "4:40"},
+            {"type": "interval", "minutes": 5, "pace": "5:24"},
+        ],
+    })
+    create_running_workout(spec)
+    steps = garmin_mock.upload_workout.call_args[0][0]["workoutSegments"][0]["workoutSteps"]
+    dist_step, time_step = steps[1], steps[2]
+    assert dist_step["endCondition"]["conditionTypeKey"] == "distance"
+    assert dist_step["endConditionValue"] == 2000
+    assert time_step["endCondition"]["conditionTypeKey"] == "time"
+    assert time_step["endConditionValue"] == 300
+
+
+# ---------------------------------------------------------------------------
 # update_running_workout
 # ---------------------------------------------------------------------------
 
