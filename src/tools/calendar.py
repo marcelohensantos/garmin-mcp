@@ -84,6 +84,7 @@ def get_scheduled_workouts(start_date: str, end_date: str) -> str:
             if start <= item_date <= end:
                 results.append({
                     "date":        date_str[:10],
+                    "scheduleId":  item.get("id"),
                     "workoutId":   item.get("workoutId"),
                     "workoutName": item.get("workoutName") or item.get("title", ""),
                     "sportType":   item.get("sportTypeKey") or item.get("workoutTypeKey", ""),
