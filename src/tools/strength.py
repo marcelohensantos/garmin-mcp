@@ -34,7 +34,7 @@ def _warmup_step(order: int) -> dict:
 
 
 def _exercise_step(order: int, reps: int, category: str,
-                   name: str, weight_kg: float) -> dict:
+                   name: str, weight_kg: float, note: str = None) -> dict:
     return {
         "type":              "ExecutableStepDTO",
         "stepOrder":         order,
@@ -42,6 +42,7 @@ def _exercise_step(order: int, reps: int, category: str,
         "endCondition":      _COND_REPS,
         "endConditionValue": float(reps),
         "targetType":        _NO_TARGET,
+        "description":       note,
         "category":          category.upper(),
         "exerciseName":      name.upper(),
         "weightValue":       float(weight_kg),
@@ -65,7 +66,8 @@ def _build_steps(exercises: list[dict]) -> list[dict]:
     for i, ex in enumerate(exercises, start=2):
         inner = [
             _exercise_step(1, int(ex.get("reps", 10)), ex.get("category", "OTHER"),
-                           ex.get("name", ""), float(ex.get("weight_kg", -1.0))),
+                           ex.get("name", ""), float(ex.get("weight_kg", -1.0)),
+                           ex.get("notes")),
             _rest_step(2, int(ex.get("rest_seconds", 60))),
         ]
         steps.append(repeat_group(i, int(ex.get("sets", 3)), inner))
@@ -106,11 +108,13 @@ def create_strength_workout(workout_json: str) -> str:
         {
           "name": "LAT_PULLDOWN",
           "category": "PULL_UP",
-          "sets": 4, "reps": 12, "weight_kg": 35.0, "rest_seconds": 75
+          "sets": 4, "reps": 12, "weight_kg": 35.0, "rest_seconds": 75,
+          "notes": "Puxada Frontal — cotovelo desce vertical"
         }
       ]
     }
 
+    Optional per-exercise "notes" → shown as the step description in Garmin.
     category valid values: PULL_UP, ROW, SHOULDER_PRESS, LATERAL_RAISE,
     TRICEPS_EXTENSION, CURL, BENCH_PRESS, SQUAT, DEADLIFT, LUNGE, HIP_RAISE,
     HIP_STABILITY, LEG_CURL, CALF_RAISE, FLYE, PUSH_UP, PLANK, CORE.
@@ -122,3 +126,16 @@ def create_strength_workout(workout_json: str) -> str:
     except json.JSONDecodeError as e:
         return json.dumps({"error": f"Invalid JSON: {e}"})
     return serialize(_builder.create(spec))
+
+
+@mcp.tool()
+def update_strength_workout(workout_id: str, workout_json: str) -> str:
+    """
+    Update an existing strength workout in place (PUT).
+    Same schema as create_strength_workout. Preserves workout ID and calendar scheduling.
+    """
+    try:
+        spec = json.loads(workout_json)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON: {e}"})
+    return serialize(_builder.update(workout_id, spec))

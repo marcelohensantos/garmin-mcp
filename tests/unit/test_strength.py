@@ -1,6 +1,6 @@
 import json
 
-from tools.strength import create_strength_workout
+from tools.strength import create_strength_workout, update_strength_workout
 
 _PUSH_WORKOUT = json.dumps({
     "name": "Push",
@@ -26,6 +26,34 @@ def test_create_strength_workout_returns_id(garmin_mock):
 def test_invalid_json_returns_error(garmin_mock):
     result = json.loads(create_strength_workout("not json"))
     assert "error" in result
+
+
+def test_update_calls_put_not_post(garmin_mock):
+    result = json.loads(update_strength_workout("99999", _PUSH_WORKOUT))
+    assert result["updated"] is True
+    assert result["workoutId"] == 99999
+    garmin_mock.client.put.assert_called_once()
+    garmin_mock.upload_workout.assert_not_called()
+
+
+def test_update_invalid_json_returns_error(garmin_mock):
+    assert "error" in json.loads(update_strength_workout("99999", "bad json"))
+
+
+def test_per_exercise_notes_become_step_description(garmin_mock):
+    spec = json.dumps({
+        "name": "Legs",
+        "exercises": [
+            {"name": "ROMANIAN_DEADLIFT", "category": "DEADLIFT",
+             "sets": 3, "reps": 8, "weight_kg": -1.0, "rest_seconds": 120,
+             "notes": "Terra Romeno (RDL)"},
+        ],
+    })
+    create_strength_workout(spec)
+    steps = garmin_mock.upload_workout.call_args[0][0]["workoutSegments"][0]["workoutSteps"]
+    # steps[0] = warmup, steps[1] = repeat group; inner[0] = exercise step
+    exercise = steps[1]["workoutSteps"][0]
+    assert exercise["description"] == "Terra Romeno (RDL)"
 
 
 def test_sport_type_is_strength(garmin_mock):
