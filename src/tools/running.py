@@ -107,6 +107,10 @@ def _step_distance_m(spec: dict):
     return None
 
 
+def _lap_warmup(order: int) -> dict:
+    return _step(1, "warmup", order, _COND_LAP, None)
+
+
 def _lap_cooldown(order: int) -> dict:
     return _step(2, "cooldown", order, _COND_LAP, None)
 
@@ -179,6 +183,8 @@ class RunningBuilder(WorkoutBuilder):
         cooldown_pace = spec.get("cooldown_pace")
         main_pace     = spec.get("main_pace")
 
+        warmup_lap    = spec.get("warmup_lap_button", False)
+
         steps = []
         order = 1
 
@@ -186,6 +192,9 @@ class RunningBuilder(WorkoutBuilder):
             if warmup_km:
                 steps.append(_distance_step(1, "warmup", order, float(warmup_km) * 1000,
                                             *(warmup_pace or [None, None])))
+                order += 1
+            if warmup_lap:
+                steps.append(_lap_warmup(order))
                 order += 1
             if main_km:
                 steps.append(_distance_step(3, "interval", order, float(main_km) * 1000,
@@ -257,7 +266,8 @@ def create_running_workout(workout_json: str) -> str:
         ]}
       ],
       "cooldown_km": 1, "cooldown_pace": ["5:26", "5:59"],
-      "pace_tolerance_sec": 5
+      "pace_tolerance_sec": 5,
+      "warmup_lap_button": true
     }
 
     Distance-based intervals in main_set — use "km" (or "meters") instead of "minutes":
